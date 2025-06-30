@@ -13,10 +13,13 @@ import org.springframework.batch.item.database.builder.JpaItemWriterBuilder;
 import org.springframework.batch.item.database.builder.JpaPagingItemReaderBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
+import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.transaction.PlatformTransactionManager;
+
+import java.time.ZoneId;
 
 /**
  * @author prabhakar, @Date 23-06-2025
@@ -50,7 +53,7 @@ public class BatchConfig {
                     transaction.setTransactionDate(
                             fieldSet.readDate("transactionDate", "yyyy-MM-dd")
                                     .toInstant()
-                                    .atZone(java.time.ZoneId.systemDefault())
+                                    .atZone(ZoneId.systemDefault())
                                     .toLocalDateTime());
                     // Set initial status to PENDING
                     transaction.setStatus("PENDING");
@@ -78,6 +81,14 @@ public class BatchConfig {
                 .entityManagerFactory(entityManagerFactory)
                 .build();
     }
+
+    //
+//    @Bean
+//    public JpaItemWriter<BankingTransaction> jpaBankTransactionItemWriter(EntityManagerFactory entityManagerFactory) {
+//        return new JpaItemWriterBuilder<BankingTransaction>()
+//                .entityManagerFactory(entityManagerFactory)
+//                .build();
+//    }
 
     // Step 1: Import transactions from the CSV into the database using chunk processing
     @Bean
@@ -124,13 +135,46 @@ public class BatchConfig {
                 .build();
     }
 
-    // Job that runs both steps sequentially
     @Bean
-    public Job bankingTransactionJob(JobRepository jobRepository, Step importTransactionStep, Step processTransactionStep) {
-        return new JobBuilder("bankingTransactionJob", jobRepository)
-                .start(importTransactionStep)
-                .next(processTransactionStep)
+    public Step noTransactionStep(JobRepository jobRepository,
+                                  PlatformTransactionManager transactionManager) {
+        return new StepBuilder("noTransactionStep", jobRepository)
+                .tasklet((contribution, chunkContext) -> {
+                    System.out.println("No pending transactions found.");
+                    return RepeatStatus.FINISHED;
+                }, transactionManager)
                 .build();
     }
+
+    // Job that runs both steps sequentially
+//    @Bean
+//    public Job bankingTransactionJob(JobRepository jobRepository, Step importTransactionStep, Step processTransactionStep) {
+//        return new JobBuilder("bankingTransactionJob", jobRepository)
+//                .start(importTransactionStep)
+//                .next(processTransactionStep)
+//                .build();
+//    }
+
+    // Job: Builds the flow using a decider to determine if processing is needed.
+    @Bean
+    public Job bankingTransactionJob(JobRepository jobRepository,
+                                     PlatformTransactionManager transactionManager,
+                                     Step importTransactionStep,
+                                     Step processTransactionStep,
+                                     Step noTransactionStep,
+                                     TransactionDecider decider,
+                                     JobCompletionNotificationListener listener) {
+        return new JobBuilder("bankingTransactionJob", jobRepository)
+                .listener(listener)
+                .start(importTransactionStep)
+                .next(decider)
+                .on("PROCESS").to(processTransactionStep)
+                .from(decider)
+                .on("NO_PENDING").to(noTransactionStep)
+                .end()
+                .build();
+    }
+
+
 
 }
