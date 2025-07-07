@@ -1,5 +1,6 @@
 package com.learn.springbatchexample.banking;
 
+import org.jetbrains.annotations.NotNull;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.job.flow.FlowExecutionStatus;
@@ -19,7 +20,7 @@ public class TransactionDecider implements JobExecutionDecider {
     }
 
     @Override
-    public FlowExecutionStatus decide(JobExecution jobExecution, StepExecution stepExecution) {
+    public @NotNull FlowExecutionStatus decide(@NotNull JobExecution jobExecution, StepExecution stepExecution) {
         long pendingCount = repository.countByStatus("PENDING");
         if (pendingCount > 0) {
             return new FlowExecutionStatus("PROCESS");

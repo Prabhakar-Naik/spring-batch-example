@@ -2,6 +2,7 @@ package com.learn.springbatchexample.logs;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
@@ -22,7 +23,7 @@ public class LogAggregationTasklet implements Tasklet {
 
     @Override
     @Transactional
-    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
+    public RepeatStatus execute(@NotNull StepContribution contribution, @NotNull ChunkContext chunkContext) throws Exception {
         // Native SQL groups log entries by level and by date.
         String sql = "SELECT level, CAST(timestamp AS DATE) as log_date, COUNT(*) as cnt " +
                 "FROM log_entry GROUP BY level, CAST(timestamp AS DATE)";
